@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aim Trainer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111827;
+      color: #f9fafb;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 10px 0 5px;
+    }
+
+    p {
+      margin: 5px 0 15px;
+      color: #cbd5e1;
+    }
+
+    .topbar {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+
+    .card {
+      background: #1f2937;
+      padding: 10px 16px;
+      border-radius: 10px;
+      min-width: 120px;
+      text-align: center;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 15px;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    #gameArea {
+      position: relative;
+      width: min(1000px, 95vw);
+      height: 70vh;
+      background: linear-gradient(180deg, #0f172a, #1e293b);
+      border: 2px solid #334155;
+      border-radius: 14px;
+      overflow: hidden;
+      cursor: crosshair;
+      user-select: none;
+    }
+
+    .target {
+      position: absolute;
+      border-radius: 50%;
+      cursor: crosshair;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ring1 {
+      width: 100%;
+      height: 100%;
+      background: #ef4444;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ring2 {
+      width: 65%;
+      height: 65%;
+      background: #f8fafc;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ring3 {
+      width: 30%;
+      height: 30%;
+      background: #111827;
+      border-radius: 50%;
+    }
+
+    .message {
+      margin-top: 12px;
+      color: #93c5fd;
+      min-height: 24px;
+      text-align: center;
+    }
+
+    .settings {
+      margin-bottom: 15px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      color: #e5e7eb;
+    }
+
+    select {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Aim Trainer</h1>
+  <p>Trykk på målene så raskt og presist som mulig.</p>
+
+  <div class="topbar">
+    <div class="card">Treff: <span id="hits">0</span></div>
+    <div class="card">Bom: <span id="misses">0</span></div>
+    <div class="card">Accuracy: <span id="accuracy">100</span>%</div>
+    <div class="card">Tid: <span id="time">30</span>s</div>
+    <div class="card">Score: <span id="score">0</span></div>
+  </div>
+
+  <div class="settings">
+    <label>
+      Størrelse:
+      <select id="sizeSelect">
+        <option value="70">Lett</option>
+        <option value="50" selected>Medium</option>
+        <option value="35">Vanskelig</option>
+      </select>
+    </label>
+
+    <label>
+      Varighet:
+      <select id="durationSelect">
+        <option value="15">15 sek</option>
+        <option value="30" selected>30 sek</option>
+        <option value="60">60 sek</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="controls">
+    <button id="startBtn">Start</button>
+    <button id="resetBtn">Nullstill</button>
+  </div>
+
+  <div id="gameArea"></div>
+  <div class="message" id="message">Trykk Start for å begynne.</div>
+
+  <script>
+    const gameArea = document.getElementById("gameArea");
+    const hitsEl = document.getElementById("hits");
+    const missesEl = document.getElementById("misses");
+    const accuracyEl = document.getElementById("accuracy");
+    const timeEl = document.getElementById("time");
+    const scoreEl = document.getElementById("score");
+    const messageEl = document.getElementById("message");
+    const startBtn = document.getElementById("startBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const sizeSelect = document.getElementById("sizeSelect");
+    const durationSelect = document.getElementById("durationSelect");
+
+    let hits = 0;
+    let misses = 0;
+    let score = 0;
+    let timeLeft = 30;
+    let timer = null;
+    let gameRunning = false;
+    let currentTarget = null;
+
+    function updateStats() {
+      hitsEl.textContent = hits;
+      missesEl.textContent = misses;
+      scoreEl.textContent = score;
+      const totalShots = hits + misses;
+      const acc = totalShots === 0 ? 100 : Math.round((hits / totalShots) * 100);
+      accuracyEl.textContent = acc;
+      timeEl.textContent = timeLeft;
+    }
+
+    function clearTarget() {
+      if (currentTarget) {
+        currentTarget.remove();
+        currentTarget = null;
+      }
+    }
+
+    function createTarget() {
+      clearTarget();
+
+      const size = parseInt(sizeSelect.value, 10);
+      const target = document.createElement("div");
+      target.className = "target";
+      target.style.width = size + "px";
+      target.style.height = size + "px";
+
+      const maxX = gameArea.clientWidth - size;
+      const maxY = gameArea.clientHeight - size;
+
+      const x = Math.random() * maxX;
+      const y = Math.random() * maxY;
+
+      target.style.left = x + "px";
+      target.style.top = y + "px";
+
+      const ring1 = document.createElement("div");
+      ring1.className = "ring1";
+
+      const ring2 = document.createElement("div");
+      ring2.className = "ring2";
+
+      const ring3 = document.createElement("div");
+      ring3.className = "ring3";
+
+      ring2.appendChild(ring3);
+      ring1.appendChild(ring2);
+      target.appendChild(ring1);
+
+      target.addEventListener("click", function (e) {
+        if (!gameRunning) return;
+        e.stopPropagation();
+        hits++;
+        score += 100;
+        updateStats();
+        createTarget();
+      });
+
+      gameArea.appendChild(target);
+      currentTarget = target;
+    }
+
+    function startGame() {
+      clearInterval(timer);
+      hits = 0;
+      misses = 0;
+      score = 0;
+      timeLeft = parseInt(durationSelect.value, 10);
+      gameRunning = true;
+      updateStats();
+      createTarget();
+      messageEl.textContent = "Spillet er i gang.";
+
+      timer = setInterval(() => {
+        timeLeft--;
+        updateStats();
+
+        if (timeLeft <= 0) {
+          endGame();
+        }
+      }, 1000);
+    }
+
+    function endGame() {
+      clearInterval(timer);
+      gameRunning = false;
+      clearTarget();
+      messageEl.textContent = `Ferdig! Score: ${score}, Treff: ${hits}, Bom: ${misses}, Accuracy: ${accuracyEl.textContent}%`;
+    }
+
+    function resetGame() {
+      clearInterval(timer);
+      gameRunning = false;
+      hits = 0;
+      misses = 0;
+      score = 0;
+      timeLeft = parseInt(durationSelect.value, 10);
+      clearTarget();
+      updateStats();
+      messageEl.textContent = "Nullstilt. Trykk Start for å begynne.";
+    }
+
+    gameArea.addEventListener("click", function () {
+      if (!gameRunning) return;
+      misses++;
+      updateStats();
+    });
+
+    startBtn.addEventListener("click", startGame);
+    resetBtn.addEventListener("click", resetGame);
+
+    resetGame();
+  </script>
+</body>
+</html>
